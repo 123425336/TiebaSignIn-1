@@ -27,6 +27,8 @@ jobs:
         env:
           BDUSS: ${{ secrets.BDUSS }}
           SCKEY: ${{ secrets.SCKEY }}
+          TID: ${{ secrets.TID }}
+          CONTENT: ${{ secrets.CONTENT }}
         run: |
           mvn -B compile exec:java \
             -Dexec.mainClass="top.srcrs.Run" \

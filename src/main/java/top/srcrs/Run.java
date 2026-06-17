@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import top.srcrs.domain.Cookie;
 import top.srcrs.util.Encryption;
 import top.srcrs.util.Request;
+import java.net.URLEncoder;
 import java.util.*;
 
 /**
@@ -53,6 +54,17 @@ public class Run
         run.getFollow();
         run.runSign();
         LOGGER.info("共 {} 个贴吧 - 成功: {} - 失败: {}",followNum,success.size(),followNum-success.size());
+        
+        // 检查并执行在指定帖子内回复4次消息的任务喵
+        String tid = System.getenv("TID");
+        if (tid != null && !tid.trim().isEmpty()) {
+            String content = System.getenv("CONTENT");
+            if (content == null || content.trim().isEmpty()) {
+                content = "贴吧自动回复测试";
+            }
+            run.replyThread(tid, content);
+        }
+
         if(args.length == 2){
             run.send(args[1]);
         }
@@ -178,6 +190,109 @@ public class Run
             LOGGER.info("server酱推送正常");
         } catch (Exception e){
             LOGGER.error("server酱发送失败 -- " + e);
+        }
+    }
+
+    /**
+     * 根据帖子ID(TID)获取该帖子所属贴吧的论坛ID(fid)和名称(kw)喵
+     * @param tid 帖子ID喵
+     * @return 包含fid和kw的数组喵，若失败则返回null喵
+     */
+    private String[] getForumInfoByTid(String tid) {
+        try {
+            // 参数字典升序排序：kz, pn, rn
+            String signStr = "kz=" + tid + "pn=1rn=1tiebaclient!!!";
+            String sign = Encryption.enCodeMd5(signStr);
+            String body = "kz=" + tid + "&pn=1&rn=1&sign=" + sign;
+            
+            // 发送网络请求喵
+            JSONObject jsonObject = Request.post("http://c.tieba.baidu.com/c/f/pb/page", body);
+            if (jsonObject != null && "0".equals(jsonObject.getString("error_code"))) {
+                JSONObject forum = jsonObject.getJSONObject("forum");
+                if (forum != null) {
+                    String fid = forum.getString("id");
+                    String kw = forum.getString("name");
+                    LOGGER.info("成功获取贴吧信息喵 -- 吧名: {} -- 吧ID: {}", kw, fid);
+                    return new String[]{fid, kw};
+                }
+            }
+            LOGGER.warn("获取贴吧信息失败喵 -- 返回数据: " + jsonObject);
+        } catch (Exception e) {
+            LOGGER.error("获取帖子关联贴吧信息时出现错误喵 -- " + e);
+        }
+        return null;
+    }
+
+    /**
+     * 在指定帖子(TID)内发送4次消息喵
+     * @param tid 帖子ID喵
+     * @param rawContent 原始回复消息内容喵
+     */
+    public void replyThread(String tid, String rawContent) {
+        try {
+            // 1. 首先获取贴吧的fid和kw信息喵
+            String[] forumInfo = getForumInfoByTid(tid);
+            if (forumInfo == null) {
+                LOGGER.warn("无法获取帖子对应的贴吧信息，停止自动回复喵！");
+                return;
+            }
+            String fid = forumInfo[0];
+            String kw = forumInfo[1];
+            
+            // 2. 循环发送4次消息喵
+            for (int i = 1; i <= 4; i++) {
+                // 每次回复前重新获取tbs以保证时效性喵
+                getTbs();
+                
+                // 拼接可爱的回复内容喵，结尾带“喵”
+                String contentWithSuffix = rawContent + "喵~ [" + i + "/4] (时间戳: " + System.currentTimeMillis() + ")";
+                
+                // 使用TreeMap自动对参数进行字典升序排序喵
+                Map<String, String> params = new TreeMap<>();
+                params.put("BDUSS", Cookie.getInstance().getBDUSS());
+                params.put("_client_type", "2");
+                params.put("_client_version", "8.9.8.8");
+                params.put("content", contentWithSuffix);
+                params.put("fid", fid);
+                params.put("kw", kw);
+                params.put("tid", tid);
+                params.put("tbs", tbs);
+                
+                // 拼接签名串，形如 key1=value1key2=value2...tiebaclient!!!
+                StringBuilder signBuilder = new StringBuilder();
+                for (Map.Entry<String, String> entry : params.entrySet()) {
+                    signBuilder.append(entry.getKey()).append("=").append(entry.getValue());
+                }
+                signBuilder.append("tiebaclient!!!");
+                String sign = Encryption.enCodeMd5(signBuilder.toString());
+                
+                // 拼接请求body，注意所有参数的值都需要进行UTF-8 URL编码喵
+                StringBuilder bodyBuilder = new StringBuilder();
+                for (Map.Entry<String, String> entry : params.entrySet()) {
+                    if (bodyBuilder.length() > 0) {
+                        bodyBuilder.append("&");
+                    }
+                    bodyBuilder.append(entry.getKey())
+                               .append("=")
+                               .append(URLEncoder.encode(entry.getValue(), "UTF-8"));
+                }
+                bodyBuilder.append("&sign=").append(sign);
+                
+                // 发送回复POST请求喵
+                JSONObject responseJson = Request.post("http://c.tieba.baidu.com/c/c/post/add", bodyBuilder.toString());
+                if (responseJson != null && "0".equals(responseJson.getString("error_code"))) {
+                    LOGGER.info("第 {} 次回复发送成功喵！", i);
+                } else {
+                    LOGGER.warn("第 {} 次回复发送失败喵 -- 返回数据: " + responseJson, i);
+                }
+                
+                // 为防止短时间内请求过于频繁被风控拦截，每次回复后等待8秒喵
+                if (i < 4) {
+                    Thread.sleep(8000);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("自动回复帖子的过程中出现错误喵 -- " + e);
         }
     }
 }

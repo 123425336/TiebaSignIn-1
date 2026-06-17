@@ -37,5 +37,15 @@ jobs:
             -Dexec.mainClass="top.srcrs.Run" \
             -Dexec.args="$BDUSS $SCKEY"
 
-      - name: Keepalive Workflow
-        uses: gautamkrishnar/keepalive-workflow@v2 # 自动提交以防止 Actions 自动暂停喵
+      - name: Keepalive Workflow (Bash)
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 每周日进行一次虚拟提交保活，既能防Action暂停又能保持提交历史干净喵
+          if [ "$(date +%u)" -eq 7 ]; then
+            echo "周日保活推送中喵~"
+            date > keepalive.txt
+            git add keepalive.txt
+            git commit -m "chore: keepalive push [skip ci]喵"
+            git push
+          fi

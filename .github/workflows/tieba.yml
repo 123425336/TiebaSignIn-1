@@ -30,6 +30,6 @@ jobs:
           TID: ${{ secrets.TID }}
           CONTENT: ${{ secrets.CONTENT }}
         run: |
-          mvn -B compile exec:java \
+          mvn -B clean compile exec:java \
             -Dexec.mainClass="top.srcrs.Run" \
             -Dexec.args="$BDUSS $SCKEY"

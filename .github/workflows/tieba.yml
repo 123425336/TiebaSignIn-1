@@ -12,6 +12,9 @@ jobs:
   signin:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write  # 授予写入权限以支持保活工作流的推送喵
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,3 +36,6 @@ jobs:
           mvn -B clean compile exec:java \
             -Dexec.mainClass="top.srcrs.Run" \
             -Dexec.args="$BDUSS $SCKEY"
+
+      - name: Keepalive Workflow
+        uses: gautamkrishnar/keepalive-workflow@v2 # 自动提交以防止 Actions 自动暂停喵

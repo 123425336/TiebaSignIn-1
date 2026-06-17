@@ -207,13 +207,15 @@ public class Run
             
             // 发送网络请求喵
             JSONObject jsonObject = Request.post("http://c.tieba.baidu.com/c/f/pb/page", body);
-            if (jsonObject != null && "0".equals(jsonObject.getString("error_code"))) {
+            if (jsonObject != null) {
                 JSONObject forum = jsonObject.getJSONObject("forum");
                 if (forum != null) {
                     String fid = forum.getString("id");
                     String kw = forum.getString("name");
-                    LOGGER.info("成功获取贴吧信息喵 -- 吧名: {} -- 吧ID: {}", kw, fid);
-                    return new String[]{fid, kw};
+                    if (fid != null && !fid.isEmpty() && kw != null && !kw.isEmpty()) {
+                        LOGGER.info("成功获取贴吧信息喵 -- 吧名: {} -- 吧ID: {}", kw, fid);
+                        return new String[]{fid, kw};
+                    }
                 }
             }
             LOGGER.warn("获取贴吧信息失败喵 -- 返回数据: " + jsonObject);

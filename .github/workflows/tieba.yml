@@ -5,6 +5,7 @@ name: Start
 on:
    push:
    gollum:
+   workflow_dispatch:  # 允许在 Actions 页面手动触发，方便测试喵
    schedule:
        - cron: '0 16 * * *'
 
@@ -13,7 +14,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # 授予写入权限以支持保活工作流的推送喵
+      contents: read  # 签到只需读取代码喵
+      actions: write  # 保活需要调用"启用工作流"接口喵
 
     steps:
       - name: Checkout code
@@ -37,15 +39,11 @@ jobs:
             -Dexec.mainClass="top.srcrs.Run" \
             -Dexec.args="$BDUSS $SCKEY"
 
-      - name: Keepalive Workflow (Bash)
+      - name: Keepalive Workflow (API)
+        if: always()  # 即使签到失败（比如 BDUSS 过期）也照样保活喵
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 每周日进行一次虚拟提交保活，既能防Action暂停又能保持提交历史干净喵
-          if [ "$(date +%u)" -eq 7 ]; then
-            echo "周日保活推送中喵~"
-            date > keepalive.txt
-            git add keepalive.txt
-            git commit -m "chore: keepalive push [skip ci]喵"
-            git push
-          fi
+          # 机器人用 GITHUB_TOKEN 推的提交不算"仓库活动"，所以改为直接调用接口重新启用本工作流，重置60天不活跃计时喵
+          gh api -X PUT "repos/${{ github.repository }}/actions/workflows/tieba.yml/enable"
+          echo "保活完成喵~"
